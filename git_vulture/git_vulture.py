@@ -2,8 +2,8 @@
 
 import optparse
 import os
+import re
 import subprocess
-import sys
 
 import git
 from wake import Vulture
@@ -12,18 +12,25 @@ from wake import Vulture
 def parse_args():
     def csv(option, opt, value, parser):
         setattr(parser.values, option.dest, value.split(','))
+    def regex_csv(option, opt, value, parser):
+        setattr(parser.values, option.dest, map(re.compile, value.split(',')))
     usage = "usage: %prog [options] PATH [PATH ...]"
     parser = optparse.OptionParser(usage=usage)
     parser.add_option('--exclude', action='callback', callback=csv,
                       type="string", default=[],
                       help='Comma-separated list of filename patterns to '
                            'exclude (e.g. svn,external).')
+    parser.add_option('--exclude-identifier-regexes',
+                      action='callback', callback=regex_csv,
+                      type="string", default=[],
+                      help='Comma-separated list of identifier regexes to '
+                           'exclude (e.g. "Test,^test_").')
     parser.add_option('-v', '--verbose', action='store_true')
     options, args = parser.parse_args()
     return options, args
 
 
-class CarrionEater(Vulture):
+class GitVulture(Vulture):
 
     @property
     def all_unused_items(self):
@@ -41,9 +48,11 @@ def _path_for_item(item):
 
 if __name__ == '__main__':
     options, args = parse_args()
-    vulture = CarrionEater(exclude=options.exclude, verbose=False and options.verbose)
+    vulture = GitVulture(exclude=options.exclude, verbose=False and options.verbose)
     vulture.scavenge(args)
     for item in vulture.all_unused_items:
+        if any(regex.search(item) for regex in options.exclude_identifier_regexes):
+            continue
         file_dir = os.path.dirname(item.file)
         process = subprocess.Popen([
             'git', 'grep',
@@ -51,11 +60,11 @@ if __name__ == '__main__':
             # '-q',  # From the git-grep manpage:
             #        # > exit with status 0 when there is a match and with
             #        # > non-zero status when there isn't.
-            '-ch',  # Only output counts.
-                    # TODO: figure out how to get git to aggregate the counts.
-            '-I',  # ignore matches in binary files
+            '-ch',   # Only output counts.
+                     # TODO: figure out how to get git to aggregate the counts.
+            '-I',    # ignore matches in binary files
 
-            item,  # Item subclasses str, so can be passed directly
+            item,    # Item subclasses str, so can be passed directly
         ], cwd=git.Repo(file_dir).wd, stdout=subprocess.PIPE)
         process.wait()
         num_found = sum(map(int, process.stdout.read().strip().split('\n')))
@@ -84,4 +93,4 @@ if __name__ == '__main__':
                         item=item, path=pretty_path, num_found=num_found))
 
 
-# ./carrion.py --exclude */migrations/* /Users/lucaswiman/counsyl/website/counsyl/product/
+# ./git_vulture.py --exclude */migrations/* $WORKDIR --exclude-identifier-regexes='^test,Test,^clean'
