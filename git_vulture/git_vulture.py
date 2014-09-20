@@ -6,7 +6,7 @@ import re
 import subprocess
 
 import git
-from wake import Vulture
+from vulture import Vulture
 
 
 def parse_args():
@@ -79,7 +79,7 @@ if __name__ == '__main__':
             # output it.
 
             print(
-                "{path}:{item.lineno}: Unused {item.type} '{item}' "
+                "{path}:{item.lineno}: Unused {item.typ} '{item}' "
                 "(used {num_found} times in git-grep)".format(
                     item=item, path=pretty_path, num_found=num_found))
         else:
@@ -88,7 +88,7 @@ if __name__ == '__main__':
             # files or tests. Only output if in verbose mose.
             if options.verbose:
                 print("SKIPPING DUE TO USAGES: "
-                    "{path}:{item.lineno}: Unused {item.type} '{item}' "
+                    "{path}:{item.lineno}: Unused {item.typ} '{item}' "
                     "(used {num_found} times in git-grep)".format(
                         item=item, path=pretty_path, num_found=num_found))
 
